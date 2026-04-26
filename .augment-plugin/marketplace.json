@@ -5,7 +5,7 @@
   },
   "metadata": {
     "description": "uspecs framework plugins",
-    "version": "1.5.0"
+    "version": "1.4.0"
   },
   "plugins": [
     {
@@ -13,7 +13,14 @@
       "description": "uspecs framework plugin for Augment Code",
       "source": "./",
       "strict": false,
-      "commands": "./commands-augment",
+      "commands": [
+        "./commands-augment/uarchive.md",
+        "./commands-augment/uchange.md",
+        "./commands-augment/uimpl.md",
+        "./commands-augment/umergepr.md",
+        "./commands-augment/upr.md",
+        "./commands-augment/usync.md"
+      ],
       "skills": [
         "./skills/uspecs-concepts",
         "./skills/uspecs-domains",
