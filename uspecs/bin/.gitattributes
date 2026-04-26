@@ -1,0 +1,3 @@
+# Force LF line endings for all files in bin/ directory
+# This ensures consistency across platforms (Windows, Linux, macOS)
+* text eol=lf
