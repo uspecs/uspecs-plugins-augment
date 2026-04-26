@@ -1,11 +1,11 @@
 {
-  "name": "uspecs-plugins",
+  "name": "uspecs-aplugins",
   "owner": {
     "name": "unTill Software Development Group B.V."
   },
   "metadata": {
     "description": "uspecs framework plugins",
-    "version": "1.3.0"
+    "version": "1.4.0"
   },
   "plugins": [
     {
