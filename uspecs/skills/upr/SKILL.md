@@ -1,6 +1,7 @@
 ---
 name: upr
 description: Create pull request from current branch
+disable-model-invocation: true
 ---
 
 # upr

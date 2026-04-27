@@ -1,6 +1,7 @@
 ---
 name: uarchive
 description: Archive change request
+disable-model-invocation: true
 ---
 
 # uarchive

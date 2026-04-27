@@ -1,6 +1,7 @@
 ---
 name: umergepr
 description: Merge pull request
+disable-model-invocation: true
 ---
 
 # umergepr

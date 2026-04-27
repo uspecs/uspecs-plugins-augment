@@ -1,6 +1,7 @@
 ---
 name: uimpl
 description: Implementation plan management
+disable-model-invocation: true
 ---
 
 # uimpl

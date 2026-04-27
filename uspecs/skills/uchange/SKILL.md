@@ -1,6 +1,7 @@
 ---
 name: uchange
 description: Create change request
+disable-model-invocation: true
 ---
 
 # uchange

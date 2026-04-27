@@ -1,6 +1,7 @@
 ---
 name: usync
 description: Align Working Change Folder plan and specs with source changes
+disable-model-invocation: true
 ---
 
 # usync
