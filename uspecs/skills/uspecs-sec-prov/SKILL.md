@@ -1,6 +1,6 @@
 ---
 name: uspecs-sec-prov
-description: Use this skill to create or explain Provisioning and configuration section items in implementation plans (impl.md, change.md)
+description: Use this skill when authoring or reviewing the `## Provisioning and configuration` section in `change.md` or `impl.md` under a Change Folder.
 user-invocable: false
 ---
 

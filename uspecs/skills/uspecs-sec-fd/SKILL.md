@@ -1,6 +1,6 @@
 ---
 name: uspecs-sec-fd
-description: Use this skill to create or explain Functional design section in implementation plans (impl.md, change.md)
+description: Use this skill when authoring or reviewing the `## Functional design` section in `change.md` or `impl.md` under a Change Folder.
 user-invocable: false
 ---
 

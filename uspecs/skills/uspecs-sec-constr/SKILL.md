@@ -1,6 +1,6 @@
 ---
 name: uspecs-sec-constr
-description: Use this skill to create or explain Construction and optional Quick start sections in implementation plans (impl.md, change.md)
+description: Use this skill when authoring or reviewing the `## Construction` or `## Quick start` section in `change.md` or `impl.md` under a Change Folder.
 user-invocable: false
 ---
 

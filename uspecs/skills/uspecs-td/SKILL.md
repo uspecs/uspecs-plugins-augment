@@ -1,6 +1,6 @@
 ---
 name: uspecs-td
-description: Use this skill to create or explain Technical Design Specifications: Domain Technology, Domain Architecture, Domain Subsystem Architecture, Context Architecture, Context Subsystem Architecture, Feature Technical Design (tech.md, arch.md, arch-{subsystem}.md, {feature}--td.md)
+description: Use this skill when authoring or reviewing a Technical Design Specification - any `tech.md`, `arch.md`, `arch-{subsystem}.md`, or `*--td.md` file under `uspecs/specs/`. Covers Domain Technology, Domain Architecture, Domain Subsystem Architecture, Context Architecture, Context Subsystem Architecture, and Feature Technical Design.
 user-invocable: false
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: uspecs-domains
-description: Use this skill to create or explain Domain Specifications (domain.md)
+description: Use this skill when authoring or reviewing a Domain Specification at `uspecs/specs/{domain}/domain.md`.
 user-invocable: false
 ---
 

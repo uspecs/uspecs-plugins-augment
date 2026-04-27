@@ -4,10 +4,15 @@
 
 - You must include only one of the following artifacts, the first one that matches the change request:
   - Domain specifications section (?specs_maybe)(?!domains_exists)
+    - Required skill: uspecs-sec-domains (?specs_maybe)(?!domains_exists)
   - Functional design section (?specs_maybe)(?!fd_exists)
+    - Required skill: uspecs-sec-fd (?specs_maybe)(?!fd_exists)
   - Provisioning and configuration section (?!prov_exists)
+    - Required skill: uspecs-sec-prov (?!prov_exists)
   - Technical design section (?specs_maybe)(?!td_exists)
+    - Required skill: uspecs-sec-td (?specs_maybe)(?!td_exists)
   - Construction and Quick start sections (?!constr_exists)
+    - Required skill: uspecs-sec-constr (?!constr_exists)
 
 Important: include exactly one implementation artifact from the list above. Use the first one from the list above that matches the change request. Do not combine multiple implementation artifacts.
 

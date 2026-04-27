@@ -1,6 +1,6 @@
 ---
 name: uspecs-fd
-description: Use this skill to create or explain Functional Design Specifications (.feature or *--reqs.md)
+description: Use this skill when authoring or reviewing a Functional Design Specification - any `*.feature` or `*--reqs.md` file under `uspecs/specs/`.
 user-invocable: false
 ---
 
