@@ -1,6 +1,6 @@
 ---
 name: uspecs-concepts
-description: Use this skill to explain the uspecs framework (concepts, folder structure, and actions)
+description: Use this skill to explain the uspecs framework (concepts, folder structure, and actions etc.)
 user-invocable: false
 ---
 
