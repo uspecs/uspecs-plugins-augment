@@ -2,5 +2,5 @@
 
 ## data
 
-Inform the user the the implementation plan is completed (?constr_exists)
-Append the following artifacts to `${change_folder}/${impl_file}`: `@artdef_impl_all_sections` (?!constr_exists)
+Inform the user the implementation plan is completed (?!constr_maybe)
+Append the following artifacts to `${change_folder}/${impl_file}`: `@artdef_impl_all_sections` (?constr_maybe)

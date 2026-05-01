@@ -37,6 +37,7 @@ Do not use when: the change affects only functional specifications, provisioning
 - [ ] update: [softeng/arch.md](../../specs/prod/softeng/arch.md)
   - update: dispatch section to document uchange/uimpl action flow
   - add: new section on error handling and retry strategy
+  
 - [ ] create: [payments/checkout--td.md](../../specs/prod/payments/checkout--td.md)
   - Feature Technical Design: token handling, PSP integration, error recovery strategy
 ```

@@ -1,7 +1,7 @@
 {
-  "name": "uspecs",
+  "name": "uspecs-dev",
   "description": "uspecs framework plugin",
-  "version": "2.2.2",
+  "version": "2.3.0-dev.20260501-1542",
   "author": {
     "name": "unTill Software Development Group B.V."
   }

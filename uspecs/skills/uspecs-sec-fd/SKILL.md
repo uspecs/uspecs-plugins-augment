@@ -32,6 +32,7 @@ Do not use when: the change affects only internal system behavior with no impact
 - [ ] update: [softeng/upr.feature](../../specs/prod/softeng/upr.feature)
   - update: "PR creation is opened in the browser" scenario -> PR is created programmatically via gh CLI
   - add: scenario for PR URL displayed after successful merge
+  
 - [ ] create: [payments/checkout.feature](../../specs/prod/payments/checkout.feature)
   - Feature specification with scenarios for card and wallet payments
 ```  

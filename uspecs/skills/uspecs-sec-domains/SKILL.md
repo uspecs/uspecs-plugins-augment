@@ -30,6 +30,7 @@ Do not use when: the change only adds features, scenarios, or implementation det
 
 - [ ] create: [softeng/domain.md](../../specs/prod/softeng/domain.md)
   - Domain Specification for software engineering workflow: actors, core concepts, contexts
+
 - [ ] update: [payments/domain.md](../../specs/prod/payments/domain.md)
   - add: "Refund" concept with lifecycle and authorization rules
   - update: "Checkout" context to reference the new Refund concept

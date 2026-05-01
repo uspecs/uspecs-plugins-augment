@@ -120,20 +120,50 @@ declare -gA _EMIT_SEEN=()    # dedup: id -> 1
 declare -ga _EMIT_QUEUE=()   # ordered list of entries: "tag\x1fid\x1fdescr\x1fbody"
 
 # emit_prompt_reset
-# Clears dedup and queue state. Call before starting a new emission sequence.
+# Clears dedup and queue state. Not called from emit_prompt's entry: emit_prompt
+# only resets _EMIT_SEEN (per-walk dedup) and lets caller-queued artifacts
+# survive into the flush. Exported for tests and defensive use.
 emit_prompt_reset() {
     _EMIT_SEEN=()
     _EMIT_QUEUE=()
 }
 
-# _emit_process_body <raw_body> <section_id> <file> [vars_map_name]
-# Shared processing: conditional lines, variable substitution.
-# Prints the processed body to stdout.
-_emit_process_body() {
+# _emit_xml_escape <string>
+# Prints the input with XML entity substitutions applied in fixed order:
+# `&` -> `&amp;` (first), then `<` -> `&lt;`, then `>` -> `&gt;`. The `&`-first
+# ordering avoids double-escaping the entities introduced by the later passes.
+# Uses sed where `\&` is the portable literal-ampersand escape, sidestepping
+# bash 5.2's patsub_replacement quirk in parameter-expansion substitution.
+_emit_xml_escape() {
+    printf '%s' "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'
+}
+
+# emit_artifact <id> <payload> [descr]
+# Queues an opaque payload for emission. The payload bypasses templating
+# (no conditional filtering, no ${VAR} substitution, no @artdef_* dep scan)
+# and is XML-entity-escaped at flush time inside <artifact id="..." descr="...">.
+# Must be called before emit_prompt; the queue survives emit_prompt's entry.
+emit_artifact() {
+    local id="$1"
+    local payload="$2"
+    local descr="${3:-}"
+    local sep=$'\x1f'
+    _EMIT_QUEUE+=("artifact${sep}${id}${sep}${descr}${sep}${payload}")
+}
+
+# _emit_filter_body <raw_body> <section_id> <file> [vars_map_name]
+# Filters conditional lines and checks for unbound ${KEY} placeholders.
+# Does NOT substitute. Prints the filtered body to stdout.
+_emit_filter_body() {
     local raw_body="$1"
     local section_id="$2"
     local file="$3"
     local vars_name="${4:-}"
+
+    # Single nameref to the caller's vars map, when provided.
+    if [[ -n "$vars_name" ]]; then
+        local -n _ep_map="$vars_name"
+    fi
 
     # Filter conditional lines: (?var) / (?!var)
     local filtered=""
@@ -145,9 +175,8 @@ _emit_process_body() {
             _ep_cvar="${BASH_REMATCH[2]}"
             _ep_cval=""
             if [[ -n "$vars_name" ]]; then
-                local -n _ep_cond_map="$vars_name"
-                if [[ -v "_ep_cond_map[$_ep_cvar]" ]]; then
-                    _ep_cval="${_ep_cond_map[$_ep_cvar]}"
+                if [[ -v "_ep_map[$_ep_cvar]" ]]; then
+                    _ep_cval="${_ep_map[$_ep_cvar]}"
                 else
                     error "unknown condition variable '${_ep_cvar}' in $section_id of $file (not in vars map '$vars_name')"
                 fi
@@ -166,20 +195,36 @@ _emit_process_body() {
         filtered+="${_ep_cline}"$'\n'
     done <<< "$raw_body"
 
-    # Substitute ${KEY} patterns using pure bash (no subshells, no awk)
-    local body="$filtered"
+    # Strip known ${KEY} placeholders so any survivor is, by definition, unbound.
+    # Done before substitution -- post-substitution checks would falsely flag
+    # dollar-brace literals carried inside substituted values (e.g. `${diff}`
+    # containing `${impl_file}` text).
+    local _ep_check="$filtered"
+    local _ep_key
     if [[ -n "$vars_name" ]]; then
-        local -n _ep_vars="$vars_name"
-        local _ep_key _ep_pat
-        for _ep_key in "${!_ep_vars[@]}"; do
-            _ep_pat="\${${_ep_key}}"
-            body="${body//"$_ep_pat"/"${_ep_vars[$_ep_key]}"}"
+        for _ep_key in "${!_ep_map[@]}"; do
+            _ep_check="${_ep_check//"\${${_ep_key}}"/}"
         done
     fi
-
-    # Check for remaining unsubstituted ${...} placeholders
-    if [[ "$body" =~ \$\{[a-zA-Z_][a-zA-Z0-9_]*\} ]]; then
+    if [[ "$_ep_check" =~ \$\{[a-zA-Z_][a-zA-Z0-9_]*\} ]]; then
         error "unbound variable in $section_id of $file: ${BASH_REMATCH[0]}"
+    fi
+
+    printf '%s' "$filtered"
+}
+
+# _emit_substitute_body <filtered_body> [vars_map_name]
+# Substitutes ${KEY} patterns from the vars map. Prints the result to stdout.
+_emit_substitute_body() {
+    local body="$1"
+    local vars_name="${2:-}"
+
+    if [[ -n "$vars_name" ]]; then
+        local -n _ep_map="$vars_name"
+        local _ep_key
+        for _ep_key in "${!_ep_map[@]}"; do
+            body="${body//"\${${_ep_key}}"/"${_ep_map[$_ep_key]}"}"
+        done
     fi
 
     printf '%s' "$body"
@@ -227,17 +272,23 @@ _emit_collect() {
 
     (( found_data )) || error "missing '## data' marker in $file"
 
-    # Process body (conditionals, vars, comments)
-    local processed
-    processed=$(_emit_process_body "$body" "$id" "$file" "$vars_name") || exit 1
+    # Filter conditionals + check unbound vars (no substitution yet).
+    local filtered
+    filtered=$(_emit_filter_body "$body" "$id" "$file" "$vars_name") || exit 1
 
-    # Scan for @artdef_ dependencies and collect them first
-    local _ep_scan="$processed"
+    # Scan for @artdef_ dependencies on the pre-substitution body. Scanning
+    # post-substitution would pick up `@artdef_*` literals carried inside
+    # substituted values (e.g. a `${diff}` value referencing `@artdef_X`).
+    local _ep_scan="$filtered"
     while [[ "$_ep_scan" =~ \`@(artdef_[a-zA-Z0-9_-]+)\` ]]; do
         local dep="${BASH_REMATCH[1]}"
         _ep_scan="${_ep_scan#*"${BASH_REMATCH[0]}"}"
         _emit_collect "$dir" "$dep" "$vars_name"
     done
+
+    # Substitute ${KEY} patterns now that deps have been collected.
+    local processed
+    processed=$(_emit_substitute_body "$filtered" "$vars_name") || exit 1
 
     # Determine XML tag
     local tag="instruction"
@@ -251,23 +302,34 @@ _emit_collect() {
 }
 
 # emit_prompt <prompts_dir> <section_id> [vars_map_name]
-# Entry point: resets state, collects the section and its dependencies,
-# then emits all collected entries (dependencies first, root last).
+# Entry point: resets per-walk dedup state, collects the section and its
+# dependencies, then emits all queued entries (caller-queued artifacts first,
+# then collected dependencies, root last). _EMIT_QUEUE is preserved across
+# entry so that emit_artifact calls placed before emit_prompt survive into
+# the flush, and cleared after flush so the next cycle starts empty.
 emit_prompt() {
-    emit_prompt_reset
+    _EMIT_SEEN=()
     _emit_collect "$@"
 
     # Flush queue
     local entry tag id descr body sep=$'\x1f'
-    for entry in "${_EMIT_QUEUE[@]}"; do
+    for entry in "${_EMIT_QUEUE[@]+"${_EMIT_QUEUE[@]}"}"; do
         tag="${entry%%"$sep"*}"; entry="${entry#*"$sep"}"
         id="${entry%%"$sep"*}"; entry="${entry#*"$sep"}"
         descr="${entry%%"$sep"*}"; body="${entry#*"$sep"}"
 
-        printf '%s\n' "<${tag} id=\"${id}\" descr=\"${descr}\">"
-        printf '%s\n' "$body"
-        printf '%s\n' "</${tag}>"
+        if [[ "$tag" == "artifact" ]]; then
+            printf '<artifact id="%s" descr="%s">\n' "$id" "$descr"
+            _emit_xml_escape "$body"
+            printf '\n</artifact>\n'
+        else
+            printf '%s\n' "<${tag} id=\"${id}\" descr=\"${descr}\">"
+            printf '%s\n' "$body"
+            printf '%s\n' "</${tag}>"
+        fi
     done
+
+    _EMIT_QUEUE=()
 }
 
 # md_read_frontmatter_field <file> <field_name>
@@ -410,7 +472,7 @@ prompt_start_instructions() {
             echo "Inform user about the results, see below. Ignore the <LOG> content above."
             ;;
         action)
-            echo "See artifact definitions below, followed by instructions."
+            echo "See artifact and artifact definitions (artdef) below, followed by instructions."
             ;;
         *)
             error "prompt_start_instructions: unknown mode '$mode' (expected: results or action)"

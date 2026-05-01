@@ -1,4 +1,30 @@
 #!/usr/bin/env bash
+
+# Re-exec under a modern Bash if the current interpreter is too old.
+# This script uses Bash 4.2+ features (declare -g, -gA). macOS still ships
+# /bin/bash 3.2, so an explicit `/bin/bash bin/softeng.sh` would otherwise fail.
+# The check below uses only Bash 3.2-safe syntax.
+if [ -z "${SOFTENG_BASH_REEXEC:-}" ] && \
+   { [ -z "${BASH_VERSINFO+x}" ] || [ "${BASH_VERSINFO[0]}" -lt 4 ] || \
+     { [ "${BASH_VERSINFO[0]}" -eq 4 ] && [ "${BASH_VERSINFO[1]}" -lt 2 ]; }; }; then
+    for _candidate in /opt/homebrew/bin/bash /usr/local/bin/bash /usr/bin/bash; do
+        if [ -x "$_candidate" ]; then
+            # shellcheck disable=SC2016
+            _cand_major=$("$_candidate" -c 'echo ${BASH_VERSINFO[0]}')
+            # shellcheck disable=SC2016
+            _cand_minor=$("$_candidate" -c 'echo ${BASH_VERSINFO[1]}')
+            if [ "$_cand_major" -gt 4 ] || \
+               { [ "$_cand_major" -eq 4 ] && [ "$_cand_minor" -ge 2 ]; }; then
+                export SOFTENG_BASH_REEXEC=1
+                exec "$_candidate" "$0" "$@"
+            fi
+        fi
+    done
+    echo "Error: this script requires Bash 4.2+. Found Bash ${BASH_VERSION:-unknown}." >&2
+    echo "Install a modern Bash (e.g. 'brew install bash') and retry." >&2
+    exit 1
+fi
+
 set -Eeuo pipefail
 
 # softeng automation
@@ -682,17 +708,18 @@ cmd_action_uchange() {
         specs_maybe="1"
     fi
 
+    # Cascade `_maybe` flags collapse here because `cmd_uchange` has no impl
+    # file: spec-tier flags follow `specs_maybe`; prov/constr are always on.
     # shellcheck disable=SC2034  # used via nameref in emit_prompt
     declare -A context_vars=(
         [change_file]="$change_file"
         [specs_folder]="$specs_folder_rel"
-        [specs_maybe]="$specs_maybe"
         [no_impl]="$opt_no_impl"
-        [domains_exists]=""
-        [fd_exists]=""
-        [prov_exists]=""
-        [td_exists]=""
-        [constr_exists]=""
+        [domains_maybe]="$specs_maybe"
+        [fd_maybe]="$specs_maybe"
+        [prov_maybe]="1"
+        [td_maybe]="$specs_maybe"
+        [constr_maybe]="1"
         [change_file_rel_path]="$change_file"
     )
 
@@ -817,11 +844,11 @@ cmd_action_uimpl() {
     while IFS= read -r _line; do
         ((_line_num++)) || true
         case "$_line" in
-            "## Domain specifications"*)            domains_exists="1"; _flush_and_close_area ;;
-            "## Functional design specifications"*) fd_exists="1";      _flush_and_close_area ;;
-            "## Provisioning"*)                     prov_exists="1";    _flush_and_close_area ;;
-            "## Technical design specifications"*)  td_exists="1";      _flush_and_close_area ;;
-            "## Construction"*)                     constr_exists="1";  _flush_and_close_area ;;
+            "##"*"Domain specifications"*) domains_exists="1"; _flush_and_close_area ;;
+            "##"*"Functional design"*)     fd_exists="1";      _flush_and_close_area ;;
+            "##"*"Provisioning"*)          prov_exists="1";    _flush_and_close_area ;;
+            "##"*"Technical design"*)      td_exists="1";      _flush_and_close_area ;;
+            "##"*"Construction"*)          constr_exists="1";  _flush_and_close_area ;;
             "- [ ] "*)
                 if (( _area_closed )); then
                     :
@@ -886,6 +913,26 @@ cmd_action_uimpl() {
         specs_maybe="1"
     fi
 
+    # Cascade `_maybe` flags: each section is offered only when its own
+    # heading is absent and no later-stage section exists. Spec-tier flags
+    # additionally require `specs_maybe`. See uimpl.feature priority order.
+    local domains_maybe="" fd_maybe="" prov_maybe="" td_maybe="" constr_maybe=""
+    if [[ -n "$specs_maybe" && -z "$domains_exists" && -z "$fd_exists" && -z "$prov_exists" && -z "$td_exists" && -z "$constr_exists" ]]; then
+        domains_maybe="1"
+    fi
+    if [[ -n "$specs_maybe" && -z "$fd_exists" && -z "$prov_exists" && -z "$td_exists" && -z "$constr_exists" ]]; then
+        fd_maybe="1"
+    fi
+    if [[ -z "$prov_exists" && -z "$td_exists" && -z "$constr_exists" ]]; then
+        prov_maybe="1"
+    fi
+    if [[ -n "$specs_maybe" && -z "$td_exists" && -z "$constr_exists" ]]; then
+        td_maybe="1"
+    fi
+    if [[ -z "$constr_exists" ]]; then
+        constr_maybe="1"
+    fi
+
     # Branching
     if [[ "$non_review_unchecked_count" -eq 0 && -n "$has_review_unchecked" ]]; then
         # Only review item unchecked
@@ -910,12 +957,11 @@ cmd_action_uimpl() {
             [change_folder]="$change_folder_rel"
             [impl_file]="$impl_file"
             [specs_folder]="$specs_folder_rel"
-            [specs_maybe]="$specs_maybe"
-            [domains_exists]="$domains_exists"
-            [fd_exists]="$fd_exists"
-            [prov_exists]="$prov_exists"
-            [td_exists]="$td_exists"
-            [constr_exists]="$constr_exists"
+            [domains_maybe]="$domains_maybe"
+            [fd_maybe]="$fd_maybe"
+            [prov_maybe]="$prov_maybe"
+            [td_maybe]="$td_maybe"
+            [constr_maybe]="$constr_maybe"
             [change_file_rel_path]="$change_folder_rel/$impl_file"
         )
         prompt_start_instructions "action"
@@ -1217,9 +1263,9 @@ cmd_action_usync() {
             [issue_exists]="$issue_exists"
             [is_large_diff]="1"
             [softeng_sh]="$softeng_sh"
-            [file_list]="$file_list"
         )
         prompt_start_instructions "action"
+        emit_artifact "usync_file_list" "$file_list" "Changed files since baseline"
         emit_prompt "$prompts_dir" "instr_usync" usync_vars
     else
         # Normal diff (including empty): emit diff + instruction
@@ -1232,9 +1278,9 @@ cmd_action_usync() {
             [impl_exists]="$impl_exists"
             [issue_exists]="$issue_exists"
             [is_large_diff]=""
-            [diff]="$diff_content"
         )
         prompt_start_instructions "action"
+        emit_artifact "usync_diff" "$diff_content" "Diff since baseline"
         emit_prompt "$prompts_dir" "instr_usync" usync_vars
     fi
 }
@@ -1412,18 +1458,26 @@ cmd_action_upr() {
         quiet git push
     fi
 
-    # Prepare PR body: strip YAML frontmatter --- delimiters (keep field lines as plain text).
-    # Fenced code blocks (```yaml / ```) are NOT used because GitHub interprets backtick
-    # sequences in the PR body incorrectly.
+    # Prepare PR body: wrap YAML frontmatter (when present, opened on line 1) in a
+    # ```yaml code fence and emit only the Why, What and How sections from change.md.
+    # Missing or unclosed frontmatter is tolerated -- whatever parts are recognisable
+    # are emitted, and an orphan opening fence is closed in END.
     local pr_body_file
     temp_create_file pr_body_file
     local pr_body_max_lines=40
     local pr_body_max_chars=4000
     awk '
-        BEGIN { fm=0 }
-        /^---$/ && fm==0 { fm=1; next }
-        /^---$/ && fm==1 { fm=2; next }
-        { print }
+        BEGIN { in_frontmatter=0; in_why_what_how=0 }
+        NR==1 && /^---$/ { in_frontmatter=1; print "```yaml"; next }
+        in_frontmatter && /^---$/ { in_frontmatter=0; print "```"; next }
+        in_frontmatter { print; next }
+        {
+            if (/^## /) {
+                in_why_what_how = ($0 ~ /^## (Why|What|How)[[:space:]]*$/) ? 1 : 0
+            }
+            if (in_why_what_how) print
+        }
+        END { if (in_frontmatter) print "```" }
     ' "$change_file" > "$pr_body_file"
     local pr_body_truncated=false
     local pr_body_lines
